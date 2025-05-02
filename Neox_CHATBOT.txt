@@ -1,0 +1,250 @@
+import wikipedia
+import pyttsx3
+import speech_recognition as sr
+import webbrowser
+import requests
+import time
+import urllib.parse
+from googleapiclient.discovery import build
+from datetime import datetime
+import os
+import platform
+import cv2
+from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
+
+# Initialize pyttsx3 for Text-to-Speech
+engine = pyttsx3.init()
+
+# Function to speak text
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+# Function to listen for voice commands
+def listen():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Listening...")
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
+        try:
+            command = recognizer.recognize_google(audio)
+            print(f"You said: {command}")
+            return command.lower()
+        except sr.UnknownValueError:
+            print("Sorry, I couldn't understand that.")
+            return ""
+        except sr.RequestError:
+            print("Sorry, there was an error with the speech service.")
+            return ""
+
+# Function to fetch the current time and speak it
+def get_current_time():
+    current_time = datetime.now().strftime("%H:%M:%S")
+    speak(f"The current time is {current_time}.")
+
+# Function to fetch weather
+def get_weather():
+    api_key = 'ENTER_YOUR_API_KEY_HERE'
+    city = "YOUR_CHOICE_CITY_NAME"
+    url = f"http://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}"
+
+    response = requests.get(url).json()
+    if response.get('weather'):
+        description = response['weather'][0]['description']
+        temp = response['main']['temp'] - 273.15
+        speak(f"The weather in {city} is {description} with a temperature of {temp:.2f}°C.")
+    else:
+        speak("Sorry, I couldn't retrieve the weather information.")
+
+# YouTube API Setup
+YOUTUBE_API_KEY = 'ENTER_YOUR_API_KEY_HERE'
+youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
+
+# Function to search and play music on YouTube
+def play_music(song_name):
+    search_query = urllib.parse.quote_plus(song_name)
+    request = youtube.search().list(
+        part="snippet",
+        q=song_name,
+        type="video"
+    )
+    response = request.execute()
+
+    if 'items' in response:
+        video_id = response['items'][0]['id']['videoId']
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        speak(f"Playing {song_name} on YouTube now.")
+        webbrowser.open(video_url)
+    else:
+        speak(f"Sorry, I couldn't find the video for {song_name}.")
+
+# Function to open apps or websites
+def perform_action(command):
+    if "play" in command and "music" in command:
+        song_name = command.replace("play music", "").strip()
+        if song_name:
+            play_music(song_name)
+        else:
+            speak("Please provide a song name.")
+    elif "open youtube" in command:
+        speak("Opening YouTube for you sir.")
+        webbrowser.open("https://www.youtube.com")
+    elif "open google" in command: 
+        speak("Opening Google for you sir.")
+        webbrowser.open("https://www.google.com")
+    elif "open whatsapp" in command: 
+        speak("Opening Whatsapp for you sir.")
+        webbrowser.open("https://www.whatsapp.com")    
+    elif "open netflix" in command:  
+        speak("Opening Netflix for you sir.")
+        webbrowser.open("https://www.netflix.com")
+    elif "open facebook" in command: 
+        speak("Opening Facebook for you sir.")
+        webbrowser.open("https://www.facebook.com")
+    elif "open linkedin" in command:
+        speak("Opening Linkedin for you sir.")  
+        webbrowser.open("https://www.linkedin.com")  
+    elif "weather" in command:
+        speak("Checking the weather for you sir.")
+        get_weather()
+    elif "what's the time" in command or "tell me the time" in command:
+        get_current_time()  # This will announce the time when asked
+    elif "shut down" in command:
+        shutdown_computer()  # Shutdown the computer when requested
+    elif "restart" in command:
+        restart_computer()  # Restart the computer when requested
+    elif "increase volume" in command:
+        change_volume("increase")
+    elif "decrease volume" in command:
+        change_volume("decrease")
+    elif "take a picture" in command:  # Command to take a picture
+        take_picture()
+    elif "exit" in command or "bye" in command:
+        speak("Goodbye! Have a nice day, thank you sir.")
+        return True
+    else:
+        speak("Sorry, I don't know how to perform that action.")
+    return False
+
+# Function to change the TTS volume
+def change_volume(action):
+    current_volume = engine.getProperty('volume')
+    if action == "increase":
+        new_volume = min(current_volume + 0.1, 1.0)
+    elif action == "decrease":
+        new_volume = max(current_volume - 0.1, 0.0)
+    engine.setProperty('volume', new_volume)
+    speak(f"Volume {action}d. The current volume level is {new_volume * 100:.0f}%.")
+  
+# Function to take a picture using the webcam
+def take_picture():
+    # Open the webcam
+    cap = cv2.VideoCapture(0)
+    
+    if not cap.isOpened():
+        speak("Sorry, I could not access your webcam.")
+        return
+    
+    # Capture a single frame
+    ret, frame = cap.read()
+    
+    if ret:
+        # Save the captured frame to a file
+        timestamp = time.strftime("%Y%m%d-%H%M%S")  # Timestamp for unique file names
+        filename = f"picture_{timestamp}.jpg"
+        cv2.imwrite(filename, frame)
+        speak(f"Picture taken and saved as {filename}.")
+        print(f"Picture saved as {filename}.")
+    else:
+        speak("Sorry, I couldn't capture the picture.")
+    
+    # Release the webcam
+    cap.release()
+    cv2.destroyAllWindows()
+
+# Function to shut down the computer
+def shutdown_computer():
+    current_os = platform.system().lower()
+    if current_os == "windows":
+        os.system("shutdown /s /f /t 0")  # Windows shutdown command
+    elif current_os == "darwin" or current_os == "linux":
+        os.system("shutdown -h now")  # macOS/Linux shutdown command
+    speak("Shutting down the computer now.")
+
+# Function to restart the computer
+def restart_computer():
+    current_os = platform.system().lower()
+    if current_os == "windows":
+        os.system("shutdown /r /f /t 0")  # Windows restart command
+    elif current_os == "darwin" or current_os == "linux":
+        os.system("reboot")  # macOS/Linux restart command
+    speak("Restarting the computer now.")
+
+# Wikipedia search function
+def search_wikipedia(query):
+    try:
+        summary = wikipedia.summary(query, sentences=2)
+        print(f"According to Wikipedia: {summary}")
+        return summary
+    except wikipedia.exceptions.DisambiguationError:
+        return "Too many results, please be more specific."
+    except wikipedia.exceptions.PageError:
+        return "I couldn't find anything on Wikipedia."
+
+# Personalized greeting
+def personalized_greeting(name):
+    current_hour = time.localtime().tm_hour
+    if current_hour < 12:
+        greeting = f"Good morning, {name}. How are you sir? How can I assist you today?"
+    elif 12 <= current_hour < 18:
+        greeting = f"Good afternoon, {name}. How are you sir? How can I assist you today?"
+    else:
+        greeting = f"Good evening, {name}. How are you sir? How can I assist you today?"
+    return greeting
+
+# Main assistant function
+def run_assistant():
+    name = "YOUR_NAME_HERE"
+    greeting = personalized_greeting(name)
+    speak(greeting)
+
+    while True:
+        user_input = listen()
+
+        if not user_input:
+            continue
+            
+        if "exit" in user_input or "bye" in user_input:
+            speak("Goodbye! Have a nice day, thank you sir.")
+            break
+        
+        if "open" in user_input:
+            perform_action(user_input)
+        elif "weather" in user_input:
+            perform_action(user_input)
+        elif "play music" in user_input:
+            perform_action(user_input)
+        elif "who is" in user_input or "what is" in user_input:
+            topic = user_input.replace("who is", "").replace("what is", "").strip()
+            result = search_wikipedia(topic)
+            speak(result)
+        elif "what's the time" in user_input or "tell me the time" in user_input:
+            get_current_time()  # Announce the time when asked
+        elif "shut down" in user_input:
+            shutdown_computer()  # Shut down the computer
+        elif "restart" in user_input:
+            restart_computer()  # Restart the computer
+        elif "increase volume" in user_input:
+            change_volume("increase")  # Increase volume
+        elif "decrease volume" in user_input:
+            change_volume("decrease")  # Decrease volume
+        elif "take a picture" in user_input:
+            take_picture()  # Take a picture
+        else:
+            speak("Sorry, I didn't catch that command.")
+
+        time.sleep(1)
+
+if __name__ == "__main__":
+    run_assistant()
