@@ -79,7 +79,7 @@ Use better voice synthesis for more natural speech
 
 
 👨‍💻 Developed By
-Prathamesh Lahase
+Prathamesh Lahase (STEELARK)
 A passionate Computer Engineering student and AI/ML intern at Microsoft, building smart tools and voice-powered assistants.
 Cybersecurity intern/ Ethical hacker.
 
